@@ -19,8 +19,6 @@
 #include <vector>
 
 int main(int argc, char** argv) {
-    // Аргументы разбираются грубо: путь к журналу и ничего больше. Остальное,
-    // включая --quiet, добавляется по заданию.
     std::string path;
     bool quiet = false;
     for (int i = 1; i < argc; ++i) {
@@ -47,16 +45,7 @@ int main(int argc, char** argv) {
     const std::vector<std::string> signs = {"wscript.exe", ".locked", "certutil.exe", "\\Startup\\"};
 
     while (std::getline(log, line)) {
-        // Счётчик увеличивается до всех проверок: он считает строки файла,
-        // а не события. Номер, посчитанный по событиям, бесполезен — по нему
-        // нельзя открыть файл и посмотреть.
         ++lines;
-
-        // Строки-комментарии в журнале начинаются с '#'. Они не события,
-        // и детекта по ним быть не должно.
-        
-
-        // >>> Здесь начинается занятие 1.1.
         std::size_t i = 0;
         while (i < line.size() && (line[i] == ' ' || line[i] == '\t')) {
             ++i;
@@ -79,8 +68,6 @@ int main(int argc, char** argv) {
                 std::print("[DETECT] строка {}, признак {}: {}\n", lines, sign, line);
             }
         }
-        // Проверка признаков и печать детекта. Номер строки, который нужен
-        // в выводе, — это lines.
     }
     if (!quiet) {
         std::print("строк {} всего\n", lines);
