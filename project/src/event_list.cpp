@@ -7,7 +7,7 @@ EventList::~EventList() {
 }
 
 void ListPopFront(EventList* list) {
-    if(!(list) || !(list->head)) {
+    if(!(list->head)) {
         return;
     }
     EventNode* old = list->head;
@@ -21,10 +21,7 @@ void ListPopFront(EventList* list) {
 
 
 void ListPushBack(EventList* list, const Event* event) {
-    if (!(list) || !(event)) {
-        return;
-    }
-    if (list->capacity > 0 && list->size >= list->capacity) {
+    if (list->capacity != 0 && list->size >= list->capacity) {
         ListPopFront(list);
     }
     EventNode* node = new EventNode{*event, nullptr};
@@ -39,9 +36,6 @@ void ListPushBack(EventList* list, const Event* event) {
 
 
 void ListClear(EventList* list) {
-    if (!(list)) {
-        return;
-    }
     EventNode* it = list->head;
     while (it) {
         EventNode* next = it->next;
