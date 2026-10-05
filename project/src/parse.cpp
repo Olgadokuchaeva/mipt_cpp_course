@@ -1,7 +1,12 @@
 #include <string>
+
 #include "event.h"
 
 namespace nano_edr {
+
+bool IsSpace(char c) {
+    return (c == ' ' || c == '\t');
+}
 
 bool IsBlankOrComment(const std::string* line) {
     if (!line) {
@@ -9,7 +14,7 @@ bool IsBlankOrComment(const std::string* line) {
     }
     const std::string& s = *line;
     std::size_t i = 0;
-    while (i < s.size() && (s[i] == ' ' || s[i] == '\t')) {
+    while (i < s.size() && IsSpace(s[i])) {
         ++i;
     }
     if (i == s.size() || s[i] == '#' || s[i] == ';') {
@@ -27,11 +32,13 @@ bool ParseEventLine(const std::string* line, Event* out) {
         return false;
     }
     *out = Event{};
-    bool have_ts = false, have_type = false, have_pid = false;
+    bool have_ts = false;
+    bool have_type = false;
+    bool have_pid = false;
     const std::string& s = *line;
     std::size_t i = 0;
     while (i < s.size()) {
-        while (i < s.size() && (s[i] == ' ' || s[i] == '\t')) {
+        while (i < s.size() && IsSpace(s[i])) {
             ++i;
         }
         if (i >= s.size()) {
@@ -72,10 +79,10 @@ bool ParseEventLine(const std::string* line, Event* out) {
             value_len = i - value_start;
         }
         std::string value = s.substr(value_start, value_len);
-        if (key == "ts" && !(have_ts)) {
+        if (key == "ts" && !(have_ts) && !(value.empty())) {
             out->ts = value;
             have_ts = true;
-        } else if (key == "type" && !(have_type)) {
+        } else if (key == "type" && !(have_type) && !(value.empty())) {
             out->type = value;
             have_type = true;
         } else if (key == "pid" && !(have_pid)) {
