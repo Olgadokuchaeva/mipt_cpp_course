@@ -8,15 +8,17 @@ namespace nano_edr {
 
 namespace {
 
+bool ImageEndsWith(const Event& event, const std::string& name) {
+    const std::string& image = GetRequiredField(event, "image");
+    std::string image_norm = NormalizePath(image);
+    return image_norm.size() >= name.size() && image_norm.compare(image_norm.size() - name.size(), name.size(), name) == 0;
+}
+
 bool ScriptHostFromTemp(const Event& event) {
     if (!IsProcessStart(event)) {
         return false;
     }
-    const std::string& image = GetRequiredField(event, "image");
-    std::string image_norm = NormalizePath(image);
-    bool is_wscript = image_norm.size() >= 11 && image_norm.compare(image_norm.size() - 11, 11, "wscript.exe") == 0;
-    bool is_cscript = image_norm.size() >= 11 && image_norm.compare(image_norm.size() - 11, 11, "cscript.exe") == 0;
-    if (!is_wscript && !is_cscript) {
+    if (!ImageEndsWith(event, "wscript.exe") && !ImageEndsWith(event, "cscript.exe")) {
         return false;
     }
     const std::string* cmdline = FindField(event, "cmdline");
@@ -33,22 +35,13 @@ bool LolbinDownload(const Event& event) {
     if (!IsProcessStart(event)) {
         return false;
     }
-    const std::string& image = GetRequiredField(event, "image");
-    std::string image_norm = NormalizePath(image);
-    bool is_certutil = image_norm.size() >= 12 && image_norm.compare(image_norm.size() - 12, 12, "certutil.exe") == 0;
-    bool is_bitsadmin = image_norm.size() >= 13 && image_norm.compare(image_norm.size() - 13, 13, "bitsadmin.exe") == 0;
-    if (!is_certutil && !is_bitsadmin) {
+    if (!ImageEndsWith(event, "certutil.exe") && !ImageEndsWith(event, "bitsadmin.exe")) {
         return false;
     }
-    const std::string* cmdline = FindField(event, "cmdline");
-    if (cmdline == nullptr) {
-        return false;
-    }
-    std::string cmd_norm = NormalizePath(*cmdline);
-    return cmd_norm.find("urlcache") != std::string::npos ||
-           cmd_norm.find("transfer") != std::string::npos ||
-           cmd_norm.find("http:") != std::string::npos ||
-           cmd_norm.find("https:") != std::string::npos;
+    return CommandLineContains(event, "urlcache") || 
+           CommandLineContains(event, "transfer") ||
+           CommandLineContains(event, "http:") ||
+           CommandLineContains(event, "https:");
 }
 
 
@@ -56,22 +49,13 @@ bool HiddenPowershell(const Event& event) {
     if (!IsProcessStart(event)) {
         return false;
     }
-    const std::string& image = GetRequiredField(event, "image");
-    std::string image_norm = NormalizePath(image);
-    bool is_powershell = image_norm.size() >= 14 && image_norm.compare(image_norm.size() - 14, 14, "powershell.exe") == 0;
-    bool is_pwsh = image_norm.size() >= 8 && image_norm.compare(image_norm.size() - 8, 8, "pwsh.exe") == 0;
-    if (!is_powershell && !is_pwsh) {
+    if (!ImageEndsWith(event, "powershell.exe") && !ImageEndsWith(event, "pwsh.exe")) {
         return false;
     }
-    const std::string* cmdline = FindField(event, "cmdline");
-    if (cmdline == nullptr) {
-        return false;
-    }
-    std::string cmd_norm = NormalizePath(*cmdline);
-    return cmd_norm.find("-w hidden") != std::string::npos ||
-           cmd_norm.find("-windowstyle hidden") != std::string::npos ||
-           cmd_norm.find("-enc") != std::string::npos ||
-           cmd_norm.find("-encodedcommand") != std::string::npos;
+    return CommandLineContains(event, "-w hidden") || 
+           CommandLineContains(event, "-windowstyle hidden") ||
+           CommandLineContains(event, "-enc") ||
+           CommandLineContains(event, "-encodedcommand");
 }
 
 

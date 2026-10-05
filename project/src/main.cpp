@@ -60,14 +60,33 @@ void PrintSummary(long long lines, long long detects, const std::string* types, 
     }
 }
 
-int Run(const std::string& path, bool quiet, std::size_t window_size) {
+
+
+int Run(const std::string& path, bool quiet, std::size_t window_size, const std::string* disabled, int disabled_count) {
     std::ifstream log(path);
     if (!log) {
         std::print(stderr, "не удалось открыть журнал: {}\n", path);
         return 2;
     }
-    const nano_edr::Rule* rules = AgentRules();
-    const std::size_t rule_count = AgentRuleCount();
+    const nano_edr::Rule* all_rules = AgentRules();
+    const std::size_t all_count = AgentRuleCount();
+    nano_edr::Rule active_rules[kMaxTypes];
+    std::size_t active_count = 0;
+    for (std::size_t i = 0; i < all_count; ++i) {
+        bool skip = false;
+        for (int d = 0; d < disabled_count; ++d) {
+            if (disabled[d] == all_rules[i].id) {
+                skip = true;
+                break;
+            }
+        }
+        if (!skip && active_count < static_cast<std::size_t>(kMaxTypes)) {
+            active_rules[active_count] = all_rules[i];
+            ++active_count;
+        }
+    }
+    const nano_edr::Rule* rules = active_rules;
+    const std::size_t rule_count = active_count;
     long long lines = 0;
     long long total_detects = 0;
     std::string line;
@@ -114,10 +133,34 @@ int main(int argc, char** argv) {
         std::string path;
         bool quiet = false;
         std::size_t window_size = 64;
+        std::string disabled[kMaxTypes];
+        int disable_count = 0;
         for (int i = 1; i < argc; ++i) {
             std::string arg = argv[i];
             if (arg == "--quiet") {
                 quiet = true;
+            } else if (arg == "--disable") {
+                if (i + 1 >= argc) {
+                    std::print(stderr, "нет такого имени");
+                    return 2;
+                }
+                ++i;
+                std::string name = argv[i];
+                bool known = false;
+                const nano_edr::Rule* rules = AgentRules();
+                const std::size_t rule_count = AgentRuleCount();
+                for (size_t i = 0; i < rule_count; ++i) {
+                    if (rules[i].id == name) {
+                        known = true;
+                        break;
+                    }
+                }
+                if (!known) {
+                    std::print(stderr, "нет такого имени");
+                    return 2;
+                }
+                disabled[disable_count] = name;
+                ++disable_count;
             } else if (arg == "--window-size" && i + 1 < argc) {
                 ++i;
                 const char* s = argv[i];
@@ -134,7 +177,7 @@ int main(int argc, char** argv) {
             std::print(stderr, "использование: nano-edr <журнал.log> [--quiet] [--window-size N]\n");
             return 2;
         }
-        return Run(path, quiet, window_size);
+        return Run(path, quiet, window_size, disabled, disable_count);
     } catch (const std::exception& error) {
         std::print(stderr, "ошибка: {}\n", error.what());
         return 1;
