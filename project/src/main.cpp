@@ -1,185 +1,107 @@
-#include <cstdio>
-#include <fstream>
+#include <charconv>
+#include <cstring>
 #include <print>
 #include <string>
-#include <cstring>
-#include <charconv>
+#include <vector>
 
-#include "parse.h"
-#include "event_list.h"
-#include "rules.h"
+#include "agent.h"
 #include "agent_rules.h"
-
-using nano_edr::Event;
-using nano_edr::EventList;
-using nano_edr::EventNode;
-using nano_edr::IsBlankOrComment;
-using nano_edr::ParseEventLine;
-using nano_edr::ListPushBack;
-using nano_edr::CheckRules;
-using nano_edr::AgentRules;
-using nano_edr::AgentRuleCount;
+#include "sources.h"
+#include "os_source.h"
+#include "rules.h"
 
 namespace {
 
-const int kMaxTypes = 64;
+struct Args {
+    std::string path;
+    bool quiet = false;
+    std::size_t window_size = 64;
+    bool file = false;
+    std::vector<std::string> disabled;
+};
 
-void PrintContext(const EventList& window) {
-    if (window.size == 0) {
-        return;
-    }
-    const EventNode* prev = nullptr;
-    const EventNode* last = nullptr;
-    for (const EventNode* it = window.head; it != nullptr; it = it->next) {
-        prev = last;
-        last = it;
-    }
-    if (prev != nullptr) {
-        std::print("[CTX] -2: ts={} type={} pid={}\n", prev->event.ts, prev->event.type, prev->event.pid);
-    }
-    if (last != nullptr) {
-        std::print("[CTX] -1: ts={} type={} pid={}\n", last->event.ts, last->event.type, last->event.pid);
-    }
-}
-
-
-int FindType(const std::string* known_types, int types_seen, const std::string& type) {
-    for (int k = 0; k < types_seen; ++k) {
-        if (known_types[k] == type) {
-            return k;
-        }
-    }
-    return -1;
-}
-
-void PrintSummary(long long lines, long long detects, const std::string* types, const long long* counts, int types_seen) {
-    std::print("строк {} всего, детектов {}\n", lines, detects);
-    std::print("события по типам:\n");
-    for (int k = 0; k < types_seen; ++k) {
-        std::print(" {}: {}\n", types[k], counts[k]);
-    }
-}
-
-
-
-int Run(const std::string& path, bool quiet, std::size_t window_size, const std::string* disabled, int disabled_count) {
-    std::ifstream log(path);
-    if (!log) {
-        std::print(stderr, "не удалось открыть журнал: {}\n", path);
-        return 2;
-    }
-    const nano_edr::Rule* all_rules = AgentRules();
-    const std::size_t all_count = AgentRuleCount();
-    nano_edr::Rule active_rules[kMaxTypes];
-    std::size_t active_count = 0;
-    for (std::size_t i = 0; i < all_count; ++i) {
-        bool skip = false;
-        for (int d = 0; d < disabled_count; ++d) {
-            if (disabled[d] == all_rules[i].id) {
-                skip = true;
-                break;
+int ParseArgs(int argc, char** argv, Args* args) {
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--quiet") {
+            args->quiet = true;
+        } else if (arg == "--window-size" && i + 1 < argc) {
+            ++i;
+            const char* s = argv[i];
+            std::size_t value = 0;
+            auto [ptr, ec] = std::from_chars(s, s + std::strlen(s), value);
+            if (ec == std::errc{}) {
+                args->window_size = value;
             }
-        }
-        if (!skip && active_count < static_cast<std::size_t>(kMaxTypes)) {
-            active_rules[active_count] = all_rules[i];
-            ++active_count;
+        } else if (arg == "--disable") {
+            if (i + 1 >= argc) {
+                std::print(stderr, "--disable требует имя правила\n");
+                return 2;
+            }
+            ++i;
+            std::string name = argv[i];
+            const nano_edr::Rule* rules = nano_edr::AgentRules();
+            std::size_t count = nano_edr::AgentRuleCount();
+            bool known = false;
+            for (std::size_t k = 0; k < count; ++k) {
+                if (name == rules[k].id) {
+                    known = true;
+                    break;
+                }
+            }
+            if (!known) {
+                std::print(stderr, "неизвестное правило: {}\n", name);
+                return 2;
+            }
+            args->disabled.push_back(name);
+        } else if (arg == "--file") {
+            if (!args->path.empty()) {
+                std::print(stderr, "путь уже задан\n");
+                return 2;
+            }
+            if (i + 1 >= argc) {
+                std::print(stderr, "--file требует путь\n");
+                return 2;
+            }
+            ++i;
+            args->path = argv[i];
+            args->file = true;
+        } else if (args->path.empty()) {
+            args->path = arg;
+        } else {
+            std::print(stderr, "лишний аргумент: {}\n", arg);
+            return 2;
         }
     }
-    const nano_edr::Rule* rules = active_rules;
-    const std::size_t rule_count = active_count;
-    long long lines = 0;
-    long long total_detects = 0;
-    std::string line;
-    std::string known_types[kMaxTypes];
-    long long type_counts[kMaxTypes] = {0};
-    int types_seen = 0;
-    EventList window;
-    window.capacity = window_size;
-    while (std::getline(log, line)) {
-        ++lines;
-        if (IsBlankOrComment(&line)) {
-            continue;
-        }
-        Event ev;
-        if (!ParseEventLine(&line, &ev)) {
-            continue;
-        }
-        std::size_t detects = CheckRules(ev, rules, rule_count);
-        total_detects += static_cast<long long>(detects);
-        if (detects > 0 && !quiet) {
-            PrintContext(window);
-        }
-        ListPushBack(&window, &ev);
-        int idx = FindType(known_types, types_seen, ev.type);
-        if (idx == -1 && types_seen < kMaxTypes) {
-            idx = types_seen;
-            known_types[idx] = ev.type;
-            ++types_seen;
-        }
-        if (idx != -1) {
-            ++type_counts[idx];
-        }
-    }
-    if (!quiet) {
-        PrintSummary(lines, total_detects, known_types, type_counts, types_seen);
+    if (args->path.empty()) {
+        std::print(stderr, "использование: nano-edr [--quiet] [--window-size N] [--disable <имя>] [--file] <путь>\n");
+        return 2;
     }
     return 0;
 }
 
 }  // namespace
 
+
 int main(int argc, char** argv) {
+    Args args;
+    int code = ParseArgs(argc, argv, &args);
+    if (code != 0) {
+        return code;
+    }
     try {
-        std::string path;
-        bool quiet = false;
-        std::size_t window_size = 64;
-        std::string disabled[kMaxTypes];
-        int disable_count = 0;
-        for (int i = 1; i < argc; ++i) {
-            std::string arg = argv[i];
-            if (arg == "--quiet") {
-                quiet = true;
-            } else if (arg == "--disable") {
-                if (i + 1 >= argc) {
-                    std::print(stderr, "нет такого имени");
-                    return 2;
-                }
-                ++i;
-                std::string name = argv[i];
-                bool known = false;
-                const nano_edr::Rule* rules = AgentRules();
-                const std::size_t rule_count = AgentRuleCount();
-                for (size_t i = 0; i < rule_count; ++i) {
-                    if (rules[i].id == name) {
-                        known = true;
-                        break;
-                    }
-                }
-                if (!known) {
-                    std::print(stderr, "нет такого имени");
-                    return 2;
-                }
-                disabled[disable_count] = name;
-                ++disable_count;
-            } else if (arg == "--window-size" && i + 1 < argc) {
-                ++i;
-                const char* s = argv[i];
-                std::size_t value = 0;
-                auto [ptr, ec] = std::from_chars(s, s + std::strlen(s), value);
-                if (ec == std::errc{}) {
-                    window_size = value;
-                }
-            } else if (path.empty()) {
-                path = arg;
-            }
+        nano_edr::Agent agent(args.window_size, args.quiet, args.disabled);
+        if (args.file) {
+            nano_edr::FileSource source(args.path);
+            source.Run(&agent);
+        } else {
+            nano_edr::OsSource source(args.path);
+            source.Run(&agent);
         }
-        if (path.empty()) {
-            std::print(stderr, "использование: nano-edr <журнал.log> [--quiet] [--window-size N]\n");
-            return 2;
-        }
-        return Run(path, quiet, window_size, disabled, disable_count);
+        agent.PrintSummary();
     } catch (const std::exception& error) {
         std::print(stderr, "ошибка: {}\n", error.what());
         return 1;
     }
+    return 0;
 }
