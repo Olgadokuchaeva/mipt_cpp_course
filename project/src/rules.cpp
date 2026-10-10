@@ -26,8 +26,8 @@ size_t CheckRules(const Event& event, const Rule* rules, size_t rule_count) {
             std::print("[DETECT] {}  {}  ts={} pid={}\n",
                        SeverityName(rules[i].severity),
                        rules[i].id,
-                       event.ts,
-                       event.pid);
+                       event.raw_ts(),
+                       event.pid());
             ++count;
         }
     }

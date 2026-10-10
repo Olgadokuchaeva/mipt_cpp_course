@@ -6,8 +6,19 @@
 
 namespace nano_edr {
 
-const std::string* FindField(const Event& event, const std::string& key) {
-    for (const Field& f : event.fields) {
+namespace {
+
+const std::string* LookupField(const Event& event, const std::string& key) {
+    if (key == "ts") {
+        return &event.raw_ts();
+    }
+    if (key == "type") {
+        return &event.type();
+    }
+    if (key == "pid") {
+        return &event.pid();
+    }
+    for (const Field& f : event.fields()) {
         if (f.key == key) {
             return &f.value;
         }
@@ -15,9 +26,15 @@ const std::string* FindField(const Event& event, const std::string& key) {
     return nullptr;
 }
 
+}  // namespace
+
+const std::string* FindField(const Event& event, const std::string& key) {
+    return LookupField(event, key);
+}
+
 
 const std::string& GetRequiredField(const Event& event, const std::string& key) {
-    const std::string* value = FindField(event, key);
+    const std::string* value = LookupField(event, key);
     if (value == nullptr) {
         throw std::invalid_argument("обязательное поле отсутствует: " + key);
     }
@@ -26,7 +43,7 @@ const std::string& GetRequiredField(const Event& event, const std::string& key) 
 
 
 bool GetIntField(const Event& event, const std::string& key, uint64_t* out) {
-    const std::string* value = FindField(event, key);
+    const std::string* value = LookupField(event, key);
     if (value == nullptr) {
         return false;
     }
@@ -52,15 +69,15 @@ uint64_t GetIntField(const Event& event, const std::string& key, uint64_t fallba
 
 
 bool IsProcessStart(const Event& event) {
-    return event.type == "process_start";
+    return event.type() == "process_start";
 }
 
 bool IsFileWrite(const Event& event) {
-    return event.type == "file_write";
+    return event.type() == "file_write";
 }
 
 bool IsNetConnect(const Event& event) {
-    return event.type == "net_connect";
+    return event.type() == "net_connect";
 }
 
 
