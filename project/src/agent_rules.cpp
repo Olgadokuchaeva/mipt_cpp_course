@@ -10,8 +10,7 @@ namespace {
 
 bool ImageEndsWith(const Event& event, const std::string& name) {
     const std::string& image = GetRequiredField(event, "image");
-    std::string image_norm = NormalizePath(image);
-    return image_norm.size() >= name.size() && image_norm.compare(image_norm.size() - name.size(), name.size(), name) == 0;
+    return NormalizePath(image).ends_with(name);
 }
 
 bool ScriptHostFromTemp(const Event& event) {
@@ -60,11 +59,11 @@ bool HiddenPowershell(const Event& event) {
 
 
 bool AutostartWrite(const Event& event) {
-    if (event.type != "file_create" && event.type != "file_write" && event.type != "file_move") {
+    if (event.type() != "file_create" && event.type() != "file_write" && event.type() != "file_move") {
         return false;
     }
     const std::string* value = nullptr;
-    if (event.type == "file_move") {
+    if (event.type() == "file_move") {
         value = FindField(event, "to");
     } else {
         value = FindField(event, "path");
@@ -78,11 +77,11 @@ bool AutostartWrite(const Event& event) {
 
 
 bool RansomExtension(const Event& event) {
-    if (event.type != "file_create" && event.type != "file_write" && event.type != "file_move") {
+    if (event.type() != "file_create" && event.type() != "file_write" && event.type() != "file_move") {
         return false;
     }
     const std::string* value = nullptr;
-    if (event.type == "file_move") {
+    if (event.type() == "file_move") {
         value = FindField(event, "to");
     } else {
         value = FindField(event, "path");
@@ -91,7 +90,7 @@ bool RansomExtension(const Event& event) {
         return false;
     }
     std::string value_norm = NormalizePath(*value);
-    return value_norm.size() >= 7 && value_norm.compare(value_norm.size() - 7, 7, ".locked") == 0;
+    return NormalizePath(*value).ends_with(".locked");
 }
 
 
