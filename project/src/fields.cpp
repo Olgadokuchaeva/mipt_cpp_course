@@ -1,4 +1,5 @@
 #include "fields.h"
+#include "text.h"
 
 #include <cctype>
 #include <stdexcept>
@@ -27,19 +28,9 @@ const std::string* LookupField(const Event& event, const std::string& key) {
     return nullptr;
 }
 
-std::string ToLowerAndSlash(const std::string& s) {
-    std::string result;
-    result.reserve(s.size());
-    for (char c : s) {
-        if (c == '/') {
-            result.push_back('\\');
-        } else {
-            result.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
-        }
-    }
-    return result;
+char ToLowerChar(char c) {
+    return static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 }
-
 
 }  // namespace
 
@@ -101,22 +92,17 @@ bool PathEndsWith(const Event& event, const std::string& suffix) {
     if (path == nullptr) {
         return false;
     }
-    std::string lower_path = ToLowerAndSlash(*path);
-    std::string lower_suffix = ToLowerAndSlash(suffix);
-    return lower_path.ends_with(lower_suffix);
+    return EndsWithIgnoreCase(*path, suffix);
 }
 
 
-bool CommandLineContains(const Event& event, const std::string& search_str) {
+bool CommandLineContains(const Event& event, const std::string& needle) {
     const std::string* cmdline = FindField(event, "cmdline");
     if (cmdline == nullptr) {
         return false;
     }
-    std::string lower_cmd = ToLowerAndSlash(*cmdline);
-    std::string lower_search_str = ToLowerAndSlash(search_str);
-    return lower_cmd.find(lower_search_str) != std::string::npos;
+    return ContainsIgnoreCase(*cmdline, needle);
 }
-
 
 std::string NormalizePath(const std::string& path) {
     std::string result;
@@ -127,8 +113,10 @@ std::string NormalizePath(const std::string& path) {
             std::size_t end = path.find('%', i + 1);
             if (end != std::string::npos) {
                 std::string name = path.substr(i + 1, end - i - 1);
-                std::string lower_name = ToLowerAndSlash(name);
-                if (lower_name == "temp" || lower_name == "tmp") {
+                for (char& c : name) {
+                    c = ToLowerChar(c);
+                }
+                if (name == "temp" || name == "tmp") {
                     result += "\\appdata\\local\\temp";
                     i = end + 1;
                     continue;
