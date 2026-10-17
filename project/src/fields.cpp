@@ -1,13 +1,25 @@
+#include "fields.h"
+
 #include <cctype>
 #include <stdexcept>
 #include <charconv>
 
-#include "event.h"
 
 namespace nano_edr {
 
-const std::string* FindField(const Event& event, const std::string& key) {
-    for (const Field& f : event.fields) {
+namespace {
+
+const std::string* LookupField(const Event& event, const std::string& key) {
+    if (key == "ts") {
+        return &event.raw_ts();
+    }
+    if (key == "type") {
+        return &event.type();
+    }
+    if (key == "pid") {
+        return &event.pid();
+    }
+    for (const Field& f : event.fields()) {
         if (f.key == key) {
             return &f.value;
         }
@@ -15,9 +27,29 @@ const std::string* FindField(const Event& event, const std::string& key) {
     return nullptr;
 }
 
+std::string ToLowerAndSlash(const std::string& s) {
+    std::string result;
+    result.reserve(s.size());
+    for (char c : s) {
+        if (c == '/') {
+            result.push_back('\\');
+        } else {
+            result.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+        }
+    }
+    return result;
+}
+
+
+}  // namespace
+
+const std::string* FindField(const Event& event, const std::string& key) {
+    return LookupField(event, key);
+}
+
 
 const std::string& GetRequiredField(const Event& event, const std::string& key) {
-    const std::string* value = FindField(event, key);
+    const std::string* value = LookupField(event, key);
     if (value == nullptr) {
         throw std::invalid_argument("обязательное поле отсутствует: " + key);
     }
@@ -26,7 +58,7 @@ const std::string& GetRequiredField(const Event& event, const std::string& key) 
 
 
 bool GetIntField(const Event& event, const std::string& key, uint64_t* out) {
-    const std::string* value = FindField(event, key);
+    const std::string* value = LookupField(event, key);
     if (value == nullptr) {
         return false;
     }
@@ -52,34 +84,16 @@ uint64_t GetIntField(const Event& event, const std::string& key, uint64_t fallba
 
 
 bool IsProcessStart(const Event& event) {
-    return event.type == "process_start";
+    return event.type() == "process_start";
 }
 
 bool IsFileWrite(const Event& event) {
-    return event.type == "file_write";
+    return event.type() == "file_write";
 }
 
 bool IsNetConnect(const Event& event) {
-    return event.type == "net_connect";
+    return event.type() == "net_connect";
 }
-
-
-namespace {
-
-std::string ToLowerAndSlash(const std::string& s) {
-    std::string result;
-    result.reserve(s.size());
-    for (char c : s) {
-        if (c == '/') {
-            result.push_back('\\');
-        } else {
-            result.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
-        }
-    }
-    return result;
-}
-
-} // namespace
 
 
 bool PathEndsWith(const Event& event, const std::string& suffix) {
@@ -89,10 +103,7 @@ bool PathEndsWith(const Event& event, const std::string& suffix) {
     }
     std::string lower_path = ToLowerAndSlash(*path);
     std::string lower_suffix = ToLowerAndSlash(suffix);
-    if (lower_suffix.size() > lower_path.size()) {
-        return false;
-    }
-    return lower_path.compare(lower_path.size() - lower_suffix.size(), lower_suffix.size(), lower_suffix) == 0;
+    return lower_path.ends_with(lower_suffix);
 }
 
 
