@@ -28,10 +28,6 @@ const std::string* LookupField(const Event& event, const std::string& key) {
     return nullptr;
 }
 
-char ToLowerChar(char c) {
-    return static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-}
-
 }  // namespace
 
 const std::string* FindField(const Event& event, const std::string& key) {
@@ -113,10 +109,7 @@ std::string NormalizePath(const std::string& path) {
             std::size_t end = path.find('%', i + 1);
             if (end != std::string::npos) {
                 std::string name = path.substr(i + 1, end - i - 1);
-                for (char& c : name) {
-                    c = ToLowerChar(c);
-                }
-                if (name == "temp" || name == "tmp") {
+                if (EqualsIgnoreCase(name, "temp") || EqualsIgnoreCase(name, "tmp")) {
                     result += "\\appdata\\local\\temp";
                     i = end + 1;
                     continue;

@@ -12,6 +12,9 @@ Agent::Agent(std::size_t window_size, bool quiet)
 
 
 void Agent::HandleEvent(const Event& event) {
+    if (!quiet_) {
+        PrintContext();
+    }
     ++total_events_;
     std::size_t detects = 0;
     for (MatchRule& rule : rules_) {
@@ -24,9 +27,7 @@ void Agent::HandleEvent(const Event& event) {
             ++detects;
         }
     }
-    if (detects > 0 && !quiet_) {
-        PrintContext();
-    }
+    total_detects_ += detects;
     window_.PushBack(event);
     if (window_.capacity() == 1) {
         prev_event_ = nullptr;
