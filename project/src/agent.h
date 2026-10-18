@@ -8,6 +8,8 @@
 #include "event.h"
 #include "event_list.h"
 #include "os.h"
+#include "rule.h"
+
 
 namespace nano_edr {
 
@@ -35,6 +37,7 @@ class Agent {
     std::size_t total_detects_ = 0;
     std::size_t total_skipped_ = 0;
     std::vector<TypeCount> stats_;
+    std::vector<MatchRule> rules_;
 
     static Event MakeEvent(const os_event* ev);
 

@@ -8,17 +8,28 @@
 namespace nano_edr {
 
 Agent::Agent(std::size_t window_size, bool quiet)
-    : window_(window_size), quiet_(quiet) {}
+    : window_(window_size), quiet_(quiet), rules_(BuildAgentRules()) {}
 
 
 void Agent::HandleEvent(const Event& event) {
     ++total_events_;
-    const Rule* rules = AgentRules();
-    std::size_t rule_count = AgentRuleCount();
-    std::size_t detects = CheckRules(event, rules, rule_count);
+    std::vector<const MatchRule*> matched;
+    for (MatchRule& rule : rules_) {
+        if (rule.Check(event)) {
+            matched.push_back(&rule);
+        }
+    }
+    std::size_t detects = matched.size();
     total_detects_ += detects;
     if (detects > 0 && !quiet_) {
         PrintContext();
+    }
+    for (const MatchRule* rule : matched) {
+        std::print("[DETECT] {}  {}  ts={} pid={}\n",
+                   SeverityName(rule->severity()),
+                   rule->id(),
+                   event.raw_ts(),
+                   event.pid());
     }
     window_.PushBack(event);
     if (window_.capacity() == 1) {
@@ -50,6 +61,10 @@ void Agent::PrintSummary() const {
     std::print("события по типам:\n");
     for (const TypeCount& s : stats_) {
         std::print(" {}: {}\n", s.type, s.count);
+    }
+    std::print("правила, детектов:\n");
+    for (const MatchRule& rule : rules_) {
+        std::print(" {:24} {}\n", rule.id(), rule.hits());
     }
 }
 
