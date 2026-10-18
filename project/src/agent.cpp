@@ -12,22 +12,25 @@ Agent::Agent(std::size_t window_size, bool quiet)
 
 
 void Agent::HandleEvent(const Event& event) {
-    if (!quiet_) {
-        PrintContext();
-    }
     ++total_events_;
-    std::size_t detects = 0;
+    std::vector<const MatchRule*> matched;
     for (MatchRule& rule : rules_) {
         if (rule.Check(event)) {
-            std::print("[DETECT] {}  {}  ts={} pid={}\n",
-                       SeverityName(rule.severity()),
-                       rule.id(),
-                       event.raw_ts(),
-                       event.pid());
-            ++detects;
+            matched.push_back(&rule);
         }
     }
+    std::size_t detects = matched.size();
     total_detects_ += detects;
+    if (detects > 0 && !quiet_) {
+        PrintContext();
+    }
+    for (const MatchRule* rule : matched) {
+        std::print("[DETECT] {}  {}  ts={} pid={}\n",
+                   SeverityName(rule->severity()),
+                   rule->id(),
+                   event.raw_ts(),
+                   event.pid());
+    }
     window_.PushBack(event);
     if (window_.capacity() == 1) {
         prev_event_ = nullptr;
