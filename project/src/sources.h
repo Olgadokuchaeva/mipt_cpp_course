@@ -3,14 +3,14 @@
 
 #include <string>
 
-#include "agent.h"
+#include "event_source.h"
 
 namespace nano_edr {
 
-class FileSource {
+class FileSource : public IEventSource {
  public:
     explicit FileSource(const std::string& path);
-    void Run(Agent* agent);
+    void Run(IEventHandler* handler) override;
 
  private:
     std::string path_;

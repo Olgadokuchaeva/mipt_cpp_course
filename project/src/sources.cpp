@@ -9,7 +9,7 @@ namespace nano_edr {
 FileSource::FileSource(const std::string& path) : path_(path) {}
 
 
-void FileSource::Run(Agent* agent) {
+void FileSource::Run(IEventHandler* handler) {
     std::ifstream log(path_);
     if (!log) {
         throw std::runtime_error("не удалось открыть журнал: " + path_);
@@ -17,19 +17,19 @@ void FileSource::Run(Agent* agent) {
     std::string line;
     while (std::getline(log, line)) {
         if (IsBlankOrComment(line)) {
+            handler->OnSkipped();
             continue;
         }
         EventParts parts;
         if (!ParseEventParts(line, &parts)) {
+            handler->OnBroken();
             continue;
         }
         try {
             Event event(parts);
-            agent->HandleEvent(event);
+            handler->HandleEvent(event);
         } catch (const std::exception& e) {
-            agent->SkipEvent(e.what());
-        } catch (...) {
-            agent->SkipEvent("неизвестное исключение");
+            handler->OnBroken();
         }
     }
 }
