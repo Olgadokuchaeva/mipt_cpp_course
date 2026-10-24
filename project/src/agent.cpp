@@ -8,23 +8,18 @@
 namespace nano_edr {
 
 Agent::Agent(std::size_t window_size, bool quiet)
-    : window_(window_size), quiet_(quiet), rules_(BuildAgentRules()) {}
+    : window_(window_size), quiet_(quiet), engine_(BuildAgentRules()) {}
 
 
 void Agent::HandleEvent(const Event& event) {
     ++total_events_;
-    std::vector<const MatchRule*> matched;
-    for (MatchRule& rule : rules_) {
-        if (rule.Check(event)) {
-            matched.push_back(&rule);
-        }
-    }
-    std::size_t detects = matched.size();
+    std::vector<const IRule*> fired;
+    std::size_t detects = engine_.ProcessEvent(event, &fired);
     total_detects_ += detects;
     if (detects > 0 && !quiet_) {
         PrintContext();
     }
-    for (const MatchRule* rule : matched) {
+    for (const IRule* rule : fired) {
         std::print("[DETECT] {}  {}  ts={} pid={}\n",
                    SeverityName(rule->severity()),
                    rule->id(),
@@ -53,6 +48,19 @@ void Agent::HandleEvent(const Event& event) {
 }
 
 
+void Agent::OnSkipped() {
+    ++total_skipped_;
+}
+
+
+void Agent::OnBroken() {
+    ++total_broken_;
+}
+
+
+void Agent::OnTick() {}
+
+
 void Agent::PrintSummary() const {
     if (quiet_) {
         return;
@@ -63,14 +71,10 @@ void Agent::PrintSummary() const {
         std::print(" {}: {}\n", s.type, s.count);
     }
     std::print("правила, детектов:\n");
-    for (const MatchRule& rule : rules_) {
+    for (std::size_t i = 0; i < engine_.size(); ++i) {
+        const IRule& rule = engine_.rule(i);
         std::print(" {:24} {}\n", rule.id(), rule.hits());
     }
-}
-
-void Agent::SkipEvent(const char* reason) noexcept {
-    ++total_skipped_;
-    std::print(stderr, "[SKIP] {}\n", reason);
 }
 
 
@@ -80,39 +84,6 @@ void Agent::PrintContext() const {
     }
     if (last_event_ != nullptr) {
         std::print("[CTX] -1: {}\n", ToString(*last_event_));
-    }
-}
-
-Event Agent::MakeEvent(const os_event* ev) {
-    EventParts parts;
-    parts.ts = std::to_string(ev->ts);
-    if (ev->type != nullptr) {
-        parts.type = ev->type;
-    }
-    if (ev->pid == 0) {
-        parts.pid = "";
-    } else {
-        parts.pid = std::to_string(ev->pid);
-    }
-    for (std::size_t i = 0; i < ev->field_count; ++i) {
-        Field f;
-        f.key = ev->fields[i].key ? ev->fields[i].key : "";
-        f.value = ev->fields[i].value ? ev->fields[i].value : "";
-        parts.fields.push_back(f);
-    }
-    return Event(parts);
-}
-
-
-void Agent::Trampoline(const os_event* ev, void* ctx) noexcept {
-    Agent* self = static_cast<Agent*>(ctx);
-    try {
-        Event event = MakeEvent(ev);
-        self->HandleEvent(event);
-    } catch (const std::exception& e) {
-        self->SkipEvent(e.what());
-    } catch (...) {
-        self->SkipEvent("неизвестное исключение");
     }
 }
 
