@@ -7,21 +7,22 @@
 
 #include "event.h"
 #include "event_list.h"
-#include "os.h"
-#include "rule.h"
+#include "event_source.h"
+#include "rule_engine.h"
 
 
 namespace nano_edr {
 
-class Agent {
+class Agent : public IEventHandler {
  public:
     Agent(std::size_t window_size, bool quiet);
 
-    void HandleEvent(const Event& event);
-    void PrintSummary() const;
-    void SkipEvent(const char* reason) noexcept;
+    void HandleEvent(const Event& event) override;
+    void OnSkipped() override;
+    void OnBroken() override;
+    void OnTick() override;
 
-    static void Trampoline(const os_event* ev, void* ctx) noexcept;
+    void PrintSummary() const;
 
  private:
     struct TypeCount {
@@ -31,15 +32,15 @@ class Agent {
 
     EventList window_;
     bool quiet_;
+    RuleEngine engine_;
     const Event* prev_event_ = nullptr;
     const Event* last_event_ = nullptr;
     std::size_t total_events_ = 0;
     std::size_t total_detects_ = 0;
     std::size_t total_skipped_ = 0;
+    std::size_t total_broken_ = 0;
     std::vector<TypeCount> stats_;
     std::vector<MatchRule> rules_;
-
-    static Event MakeEvent(const os_event* ev);
 
     void PrintContext() const;
 };

@@ -5,35 +5,34 @@
 #include <vector>
 
 #include "agent.h"
-#include "agent_rules.h"
-#include "sources.h"
+#include "event_source.h"
 #include "os_source.h"
-#include "rules.h"
+#include "sources.h"
 
 namespace {
 
-struct Args {
+struct Options {
     std::string path;
     bool quiet = false;
     std::size_t window_size = 64;
-    bool file = false;
+    bool force_file = false;
 };
 
-int ParseArgs(int argc, char** argv, Args* args) {
+int ParseArgs(int argc, char** argv, Options* opts) {
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--quiet") {
-            args->quiet = true;
+            opts->quiet = true;
         } else if (arg == "--window-size" && i + 1 < argc) {
             ++i;
             const char* s = argv[i];
             std::size_t value = 0;
             auto [ptr, ec] = std::from_chars(s, s + std::strlen(s), value);
             if (ec == std::errc{}) {
-                args->window_size = value;
+                opts->window_size = value;
             }
         } else if (arg == "--file") {
-            if (!args->path.empty()) {
+            if (!opts->path.empty()) {
                 std::print(stderr, "путь уже задан\n");
                 return 2;
             }
@@ -42,16 +41,16 @@ int ParseArgs(int argc, char** argv, Args* args) {
                 return 2;
             }
             ++i;
-            args->path = argv[i];
-            args->file = true;
-        } else if (args->path.empty()) {
-            args->path = arg;
+            opts->path = argv[i];
+            opts->force_file = true;
+        } else if (opts->path.empty()) {
+            opts->path = arg;
         } else {
             std::print(stderr, "лишний аргумент: {}\n", arg);
             return 2;
         }
     }
-    if (args->path.empty()) {
+    if (opts->path.empty()) {
         std::print(stderr, "использование: nano-edr [--quiet] [--window-size N] [--file] <путь>\n");
         return 2;
     }
@@ -62,18 +61,18 @@ int ParseArgs(int argc, char** argv, Args* args) {
 
 
 int main(int argc, char** argv) {
-    Args args;
-    int code = ParseArgs(argc, argv, &args);
+    Options opts;
+    int code = ParseArgs(argc, argv, &opts);
     if (code != 0) {
         return code;
     }
     try {
-        nano_edr::Agent agent(args.window_size, args.quiet);
-        if (args.file) {
-            nano_edr::FileSource source(args.path);
+        nano_edr::Agent agent(opts.window_size, opts.quiet);
+        if (opts.force_file) {
+            nano_edr::FileSource source(opts.path);
             source.Run(&agent);
         } else {
-            nano_edr::OsSource source(args.path);
+            nano_edr::OsSource source(opts.path);
             source.Run(&agent);
         }
         agent.PrintSummary();
