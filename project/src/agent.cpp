@@ -7,8 +7,8 @@
 
 namespace nano_edr {
 
-Agent::Agent(std::size_t window_size, bool quiet)
-    : window_(window_size), quiet_(quiet), engine_(BuildAgentRules()) {}
+Agent::Agent(bool quiet)
+    : quiet_(quiet), engine_(BuildAgentRules()) {}
 
 
 void Agent::HandleEvent(const Event& event) {
@@ -26,14 +26,11 @@ void Agent::HandleEvent(const Event& event) {
                    event.raw_ts(),
                    event.pid());
     }
-    window_.PushBack(event);
-    if (window_.capacity() == 1) {
-        prev_event_ = nullptr;
-        last_event_ = &window_.back()->event;
-    } else {
-        prev_event_ = last_event_;
-        last_event_ = &window_.back()->event;
-    }
+    WindowEntry entry;
+    entry.ts   = event.ts();
+    entry.type = event.type();
+    entry.pid  = event.pid();
+    window_.PushBack(entry);
     bool found = false;
     for (TypeCount& s : stats_) {
         if (s.type == event.type()) {
@@ -48,24 +45,31 @@ void Agent::HandleEvent(const Event& event) {
 }
 
 
-void Agent::OnSkipped() {
-    ++total_skipped_;
+void Agent::OnSkipped() { ++total_skipped_; }
+void Agent::OnBroken() { ++total_broken_; }
+void Agent::OnTick() { }
+
+
+void Agent::PrintContext() const {
+    if (window_.size() >= 2) {
+        const WindowEntry& prev = window_[window_.size() - 2];
+        const WindowEntry& last = window_[window_.size() - 1];
+        std::print("[CTX] -2: {} {} pid={}\n", prev.ts.ms, prev.type, prev.pid);
+        std::print("[CTX] -1: {} {} pid={}\n", last.ts.ms, last.type, last.pid);
+    } else if (window_.size() == 1) {
+        const WindowEntry& last = window_[0];
+        std::print("[CTX] -1: {} {} pid={}\n", last.ts.ms, last.type, last.pid);
+    }
 }
-
-
-void Agent::OnBroken() {
-    ++total_broken_;
-}
-
-
-void Agent::OnTick() {}
 
 
 void Agent::PrintSummary() const {
     if (quiet_) {
         return;
     }
-    std::print("событий {} всего, детектов {}, пропущено {}\n", total_events_, total_detects_, total_skipped_);
+    std::print("событий {} всего, детектов {}, пропущено {}, битых {}\n", 
+        total_events_, total_detects_, total_skipped_, total_broken_);
+    std::print("[STAT] в окне {} из {} мест\n", window_.size(), RingBuffer<WindowEntry, kWindowCapacity>::capacity());
     std::print("события по типам:\n");
     for (const TypeCount& s : stats_) {
         std::print(" {}: {}\n", s.type, s.count);
@@ -74,16 +78,6 @@ void Agent::PrintSummary() const {
     for (std::size_t i = 0; i < engine_.size(); ++i) {
         const IRule& rule = engine_.rule(i);
         std::print(" {:24} {}\n", rule.id(), rule.hits());
-    }
-}
-
-
-void Agent::PrintContext() const {
-    if (prev_event_ != nullptr) {
-        std::print("[CTX] -2: {}\n", ToString(*prev_event_));
-    }
-    if (last_event_ != nullptr) {
-        std::print("[CTX] -1: {}\n", ToString(*last_event_));
     }
 }
 
