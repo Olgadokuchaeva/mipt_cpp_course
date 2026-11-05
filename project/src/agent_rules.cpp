@@ -3,8 +3,10 @@
 #include <memory>
 #include <vector>
 
+#include "combinators.h"
 #include "conditions.h"
 #include "event.h"
+#include "make_rule.h"
 #include "rule.h"
 
 namespace nano_edr {
@@ -131,6 +133,23 @@ std::unique_ptr<IRule> MakeScriptHostBeacon() {
     return rule;
 }
 
+std::unique_ptr<IRule> MakeRansomwareMassWrite() {
+    auto rule = MakeRule<ThresholdRule<128>>(
+        "ransomware_mass_write", Severity::kCritical, 20, 10000, "pid");
+    rule->SetCondition(MakeCondition(AllOfStatic(
+        EventTypeIs({EventType::kFileCreate, 
+            EventType::kFileWrite, 
+            EventType::kFileMove}),
+        AnyOfStatic(
+            FieldContains("path", "\\Documents\\"),
+            FieldContains("path", "\\Desktop\\"),
+            FieldContains("to", "\\Documents\\"),
+            FieldContains("to", "\\Desktop\\")))));
+    rule->AddAction("kill_process");
+    rule->AddAction("quarantine_file");
+    return rule;
+}
+
 }  // namespace
 
 
@@ -142,6 +161,7 @@ RuleEngine BuildAgentRules() {
     engine.AddRule(MakeAutostartWrite());
     engine.AddRule(MakeRansomExtension());
     engine.AddRule(MakeScriptHostBeacon());
+    engine.AddRule(MakeRansomwareMassWrite());
     return engine;
 }
 
