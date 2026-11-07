@@ -1,9 +1,8 @@
 #ifndef NANO_EDR_RING_BUFFER_H
 #define NANO_EDR_RING_BUFFER_H
 
-#include <cstddef>
+#include <array>
 
-#include "event.h"
 
 namespace nano_edr {
 
@@ -29,8 +28,8 @@ class RingBuffer {
         }
 
      private:
-        const RingBuffer* ring_;
-        std::size_t index_;
+        const RingBuffer* ring_ = nullptr;
+        std::size_t index_ = 0;
     };
 
     void PushBack(const T& value) {
@@ -81,7 +80,7 @@ class RingBuffer {
     }
 
  private:
-    T data_[N]{};
+    std::array<T, N> data_{};
     std::size_t head_ = 0;
     std::size_t size_ = 0;
 };

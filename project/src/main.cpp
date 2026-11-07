@@ -32,6 +32,9 @@ int ParseArgs(int argc, char** argv, Options* opts) {
             ++i;
             opts->path = argv[i];
             opts->force_file = true;
+        } else if (!arg.empty() && arg[0] == '-') {
+            std::print(stderr, "неизвестный флаг: {}\n", arg);
+            return 2;
         } else if (opts->path.empty()) {
             opts->path = arg;
         } else {

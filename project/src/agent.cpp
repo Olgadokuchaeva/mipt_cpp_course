@@ -51,15 +51,15 @@ void Agent::OnTick() { }
 
 
 void Agent::PrintContext() const {
+    if (window_.empty()) {
+        return;
+    }
     if (window_.size() >= 2) {
         const WindowEntry& prev = window_[window_.size() - 2];
-        const WindowEntry& last = window_[window_.size() - 1];
         std::print("[CTX] -2: {} {} pid={}\n", prev.ts.ms, prev.type, prev.pid);
-        std::print("[CTX] -1: {} {} pid={}\n", last.ts.ms, last.type, last.pid);
-    } else if (window_.size() == 1) {
-        const WindowEntry& last = window_[0];
-        std::print("[CTX] -1: {} {} pid={}\n", last.ts.ms, last.type, last.pid);
     }
+    const WindowEntry& last = window_.back();
+    std::print("[CTX] -1: {} {} pid={}\n", last.ts.ms, last.type, last.pid);
 }
 
 

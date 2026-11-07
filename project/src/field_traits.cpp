@@ -12,9 +12,6 @@ bool FieldTraits<std::string>::Parse(const std::string& text, std::string* out) 
 }
 
 bool FieldTraits<uint64_t>::Parse(const std::string& text, uint64_t* out) {
-    if (text.empty()) {
-        return false;
-    }
     uint64_t result = 0;
     const char* first = text.data();
     const char* last  = text.data() + text.size();
