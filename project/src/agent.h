@@ -6,16 +6,23 @@
 #include <vector>
 
 #include "event.h"
-#include "event_list.h"
 #include "event_source.h"
+#include "ring_buffer.h"
 #include "rule_engine.h"
-
 
 namespace nano_edr {
 
+struct WindowEntry {
+    Timestamp ts;
+    std::string type;
+    std::string pid;
+};
+
 class Agent : public IEventHandler {
  public:
-    Agent(std::size_t window_size, bool quiet);
+    static constexpr std::size_t kWindowCapacity = 256;
+
+    explicit Agent(bool quiet);
 
     void HandleEvent(const Event& event) override;
     void OnSkipped() override;
@@ -30,17 +37,15 @@ class Agent : public IEventHandler {
         std::size_t count = 0;
     };
 
-    EventList window_;
+    RingBuffer<WindowEntry, kWindowCapacity> window_;
     bool quiet_;
     RuleEngine engine_;
-    const Event* prev_event_ = nullptr;
-    const Event* last_event_ = nullptr;
+
     std::size_t total_events_ = 0;
     std::size_t total_detects_ = 0;
     std::size_t total_skipped_ = 0;
     std::size_t total_broken_ = 0;
     std::vector<TypeCount> stats_;
-    std::vector<MatchRule> rules_;
 
     void PrintContext() const;
 };

@@ -1,8 +1,6 @@
-#include <charconv>
-#include <cstring>
+#include <memory>
 #include <print>
 #include <string>
-#include <vector>
 
 #include "agent.h"
 #include "event_source.h"
@@ -14,7 +12,6 @@ namespace {
 struct Options {
     std::string path;
     bool quiet = false;
-    std::size_t window_size = 64;
     bool force_file = false;
 };
 
@@ -23,14 +20,6 @@ int ParseArgs(int argc, char** argv, Options* opts) {
         std::string arg = argv[i];
         if (arg == "--quiet") {
             opts->quiet = true;
-        } else if (arg == "--window-size" && i + 1 < argc) {
-            ++i;
-            const char* s = argv[i];
-            std::size_t value = 0;
-            auto [ptr, ec] = std::from_chars(s, s + std::strlen(s), value);
-            if (ec == std::errc{}) {
-                opts->window_size = value;
-            }
         } else if (arg == "--file") {
             if (!opts->path.empty()) {
                 std::print(stderr, "путь уже задан\n");
@@ -43,6 +32,9 @@ int ParseArgs(int argc, char** argv, Options* opts) {
             ++i;
             opts->path = argv[i];
             opts->force_file = true;
+        } else if (!arg.empty() && arg[0] == '-') {
+            std::print(stderr, "неизвестный флаг: {}\n", arg);
+            return 2;
         } else if (opts->path.empty()) {
             opts->path = arg;
         } else {
@@ -51,7 +43,7 @@ int ParseArgs(int argc, char** argv, Options* opts) {
         }
     }
     if (opts->path.empty()) {
-        std::print(stderr, "использование: nano-edr [--quiet] [--window-size N] [--file] <путь>\n");
+        std::print(stderr, "использование: nano-edr [--quiet] [--file] <путь>\n");
         return 2;
     }
     return 0;
@@ -67,14 +59,14 @@ int main(int argc, char** argv) {
         return code;
     }
     try {
-        nano_edr::Agent agent(opts.window_size, opts.quiet);
+        nano_edr::Agent agent(opts.quiet);
+        std::unique_ptr<nano_edr::IEventSource> source;
         if (opts.force_file) {
-            nano_edr::FileSource source(opts.path);
-            source.Run(&agent);
+            source = std::make_unique<nano_edr::FileSource>(opts.path);
         } else {
-            nano_edr::OsSource source(opts.path);
-            source.Run(&agent);
+            source = std::make_unique<nano_edr::OsSource>(opts.path);
         }
+        source->Run(&agent);
         agent.PrintSummary();
     } catch (const std::exception& error) {
         std::print(stderr, "ошибка: {}\n", error.what());
