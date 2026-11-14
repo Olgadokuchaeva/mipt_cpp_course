@@ -2,10 +2,11 @@
 #define NANO_EDR_AGENT_RULES_H
 
 #include "rule_engine.h"
+#include "entity_model.h"
 
 namespace nano_edr {
 
-RuleEngine BuildAgentRules();
+RuleEngine BuildAgentRules(const EntityModel* model);
 
 }  // namespace nano_edr
 
