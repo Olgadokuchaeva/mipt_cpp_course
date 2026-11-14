@@ -4,32 +4,29 @@
 #include "agent.h"
 #include "agent_rules.h"
 #include "rules.h"
+#include "dedup_sink.h"
 
 namespace nano_edr {
 
-Agent::Agent(bool quiet)
-    : quiet_(quiet), engine_(BuildAgentRules()) {}
+Agent::Agent(bool quiet, uint64_t dedup_period_ms)
+    : quiet_(quiet), 
+      engine_(BuildAgentRules(&model_)), 
+      dedup_period_ms_(dedup_period_ms) {
+    engine_.SetModel(&model_);
+}
 
 
 void Agent::HandleEvent(const Event& event) {
     ++total_events_;
+    context_printed_ = false;
+    model_.Observe(event);
     std::vector<const IRule*> fired;
     std::size_t detects = engine_.ProcessEvent(event, &fired);
     total_detects_ += detects;
-    if (detects > 0 && !quiet_) {
-        PrintContext();
-    }
-    for (const IRule* rule : fired) {
-        std::print("[DETECT] {}  {}  ts={} pid={}\n",
-                   SeverityName(rule->severity()),
-                   rule->id(),
-                   event.raw_ts(),
-                   event.pid());
-    }
     WindowEntry entry;
-    entry.ts   = event.ts();
+    entry.ts = event.ts();
     entry.type = event.type();
-    entry.pid  = event.pid();
+    entry.pid = event.pid();
     window_.PushBack(entry);
     bool found = false;
     for (TypeCount& s : stats_) {
@@ -70,15 +67,34 @@ void Agent::PrintSummary() const {
     std::print("событий {} всего, детектов {}, пропущено {}, битых {}\n", 
         total_events_, total_detects_, total_skipped_, total_broken_);
     std::print("[STAT] в окне {} из {} мест\n", window_.size(), RingBuffer<WindowEntry, kWindowCapacity>::capacity());
+    std::print("[STAT] в модели процессов {}, файлов {}\n", model_.process_count(), model_.file_count());
     std::print("события по типам:\n");
     for (const TypeCount& s : stats_) {
         std::print(" {}: {}\n", s.type, s.count);
+    }
+    if (suppressed_ > 0) {
+        std::print("[STAT] подавлено дубликатов {} (срок {} мс)\n", suppressed_, dedup_period_ms_);
     }
     std::print("правила, детектов:\n");
     for (std::size_t i = 0; i < engine_.size(); ++i) {
         const IRule& rule = engine_.rule(i);
         std::print(" {:24} {}\n", rule.id(), rule.hits());
     }
+}
+
+void Agent::Subscribe(AlertSink sink) {
+    FanOutSink all;
+    all.Add([this](const Detection&) { PrintContextOnce(); });
+    all.Add(std::move(sink));
+    engine_.Subscribe(DedupSink(std::move(all), dedup_period_ms_, &suppressed_));
+}
+
+void Agent::PrintContextOnce() {
+    if (quiet_ || context_printed_) {
+        return;
+    }
+    context_printed_ = true;
+    PrintContext();
 }
 
 }  // namespace nano_edr
