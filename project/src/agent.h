@@ -4,11 +4,13 @@
 #include <cstddef>
 #include <string>
 #include <vector>
+#include <cstdint>
 
 #include "event.h"
 #include "event_source.h"
 #include "ring_buffer.h"
 #include "rule_engine.h"
+#include "entity_model.h"
 
 namespace nano_edr {
 
@@ -22,7 +24,7 @@ class Agent : public IEventHandler {
  public:
     static constexpr std::size_t kWindowCapacity = 256;
 
-    explicit Agent(bool quiet);
+    explicit Agent(bool quiet, uint64_t dedup_period_ms);
 
     void HandleEvent(const Event& event) override;
     void OnSkipped() override;
@@ -30,6 +32,7 @@ class Agent : public IEventHandler {
     void OnTick() override;
 
     void PrintSummary() const;
+    void Subscribe(AlertSink sink);
 
  private:
     struct TypeCount {
@@ -39,8 +42,10 @@ class Agent : public IEventHandler {
 
     RingBuffer<WindowEntry, kWindowCapacity> window_;
     bool quiet_;
+    EntityModel model_;
     RuleEngine engine_;
-
+    uint64_t dedup_period_ms_{};
+    std::size_t suppressed_{};
     std::size_t total_events_ = 0;
     std::size_t total_detects_ = 0;
     std::size_t total_skipped_ = 0;
@@ -48,6 +53,9 @@ class Agent : public IEventHandler {
     std::vector<TypeCount> stats_;
 
     void PrintContext() const;
+
+    bool context_printed_ = false;
+    void PrintContextOnce();
 };
 
 }  // namespace nano_edr

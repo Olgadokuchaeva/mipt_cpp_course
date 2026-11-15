@@ -150,10 +150,51 @@ std::unique_ptr<IRule> MakeRansomwareMassWrite() {
     return rule;
 }
 
+std::unique_ptr<IRule> MakeShellSpawnsScriptHost(const EntityModel* model) {
+    auto rule = std::make_unique<SequenceRule>(
+        "shell_spawns_script_host", Severity::kHigh, 30000);
+    auto shell_start = std::make_unique<AllOf>();
+    shell_start->Add(std::make_unique<EventTypeIs>(std::vector<EventType>{EventType::kProcessStart}));
+    auto shell_img = std::make_unique<AnyOf>();
+    shell_img->Add(std::make_unique<FieldEndsWith>("image", "cmd.exe"));
+    shell_img->Add(std::make_unique<FieldEndsWith>("image", "powershell.exe"));
+    shell_img->Add(std::make_unique<FieldEndsWith>("image", "pwsh.exe"));
+    shell_start->Add(std::move(shell_img));
+    rule->SetFirst(std::move(shell_start));
+    auto script_start = std::make_unique<AllOf>();
+    script_start->Add(std::make_unique<EventTypeIs>(std::vector<EventType>{EventType::kProcessStart}));
+    auto script_img = std::make_unique<AnyOf>();
+    script_img->Add(std::make_unique<FieldEndsWith>("image", "wscript.exe"));
+    script_img->Add(std::make_unique<FieldEndsWith>("image", "cscript.exe"));
+    script_start->Add(std::move(script_img));
+    rule->SetSecond(std::move(script_start));
+    rule->set_child_of_prev(true);
+    rule->SetModel(model);
+    rule->AddAction("kill_process");
+    return rule;
+}
+
+std::unique_ptr<IRule> MakeSpawnedFromDroppedFile(const EntityModel* model) {
+    auto rule = MakeRule<LambdaRule>(
+        "spawned_from_dropped_file", Severity::kHigh,
+        [model](const Event& event) {
+            if (event.event_type() != EventType::kProcessStart) {
+                return false;
+            }
+            const FileRecord* source = model->FindSpawnSource(event.pid());
+            return source != nullptr && 
+                   !source->writer_pid.empty() && 
+                   source->writer_pid != event.pid();
+        });
+    rule->AddAction("kill_process");
+    rule->AddAction("quarantine_file");
+    return rule;
+}
+
 }  // namespace
 
 
-RuleEngine BuildAgentRules() {
+RuleEngine BuildAgentRules(const EntityModel* model) {
     RuleEngine engine;
     engine.AddRule(MakeScriptHostFromTemp());
     engine.AddRule(MakeLolbinDownload());
@@ -162,6 +203,8 @@ RuleEngine BuildAgentRules() {
     engine.AddRule(MakeRansomExtension());
     engine.AddRule(MakeScriptHostBeacon());
     engine.AddRule(MakeRansomwareMassWrite());
+    engine.AddRule(MakeShellSpawnsScriptHost(model));
+    engine.AddRule(MakeSpawnedFromDroppedFile(model));
     return engine;
 }
 
