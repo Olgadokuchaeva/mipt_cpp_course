@@ -35,7 +35,7 @@ class DedupSink {
     struct Entry {
         std::string rule;
         std::string pid;
-        uint64_t first_ts;
+        uint64_t first_ts = 0;
     };
 
     AlertSink inner_;

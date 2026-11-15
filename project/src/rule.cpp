@@ -1,6 +1,8 @@
 #include "rule.h"
 #include "entity_model.h"
 
+#include <utility>
+
 namespace nano_edr {
 
 RuleBase::RuleBase(const std::string& id, Severity severity)
@@ -95,7 +97,7 @@ bool SequenceRule::Check(const Event& event) {
 }
 
 LambdaRule::LambdaRule(const std::string& id, Severity severity, Predicate predicate)
-    : RuleBase(id, severity), predicate_(predicate) {}
+    : RuleBase(id, severity), predicate_(std::move(predicate)) {}
 
 bool LambdaRule::Check(const Event& event) {
     if (!predicate_) {

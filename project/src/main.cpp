@@ -54,7 +54,7 @@ int ParseArgs(int argc, char** argv, Options* opts) {
         }
     }
     if (opts->path.empty()) {
-        std::print(stderr, "использование: nano-edr [--quiet] [--file] [--out] <путь>\n");
+        std::print(stderr, "использование: nano-edr [--quiet] [--file] [--out <файл>] <путь>\n");
         return 2;
     }
     return 0;
