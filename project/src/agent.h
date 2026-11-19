@@ -2,29 +2,26 @@
 #define NANO_EDR_AGENT_H
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
-#include <cstdint>
 
 #include "event.h"
 #include "event_source.h"
 #include "ring_buffer.h"
 #include "rule_engine.h"
 #include "entity_model.h"
+#include "window_entry.h"
+#include "response.h"
+#include "os_handle.h"
 
 namespace nano_edr {
-
-struct WindowEntry {
-    Timestamp ts;
-    std::string type;
-    std::string pid;
-};
 
 class Agent : public IEventHandler {
  public:
     static constexpr std::size_t kWindowCapacity = 256;
 
-    explicit Agent(bool quiet, uint64_t dedup_period_ms);
+    explicit Agent(bool quiet, uint64_t dedup_period_ms, OsHandle* os, std::string quarantine_dir, bool dry_run);
 
     void HandleEvent(const Event& event) override;
     void OnSkipped() override;
@@ -53,9 +50,12 @@ class Agent : public IEventHandler {
     std::vector<TypeCount> stats_;
 
     void PrintContext() const;
+    void PrintContextOnce();
 
     bool context_printed_ = false;
-    void PrintContextOnce();
+
+    ResponsePlanner planner_;
+    Responder responder_;
 };
 
 }  // namespace nano_edr

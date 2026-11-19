@@ -26,7 +26,7 @@ void FileSource::Run(IEventHandler* handler) {
             continue;
         }
         try {
-            Event event(parts);
+            Event event(std::move(parts));
             handler->HandleEvent(event);
         } catch (const std::exception& e) {
             handler->OnBroken();

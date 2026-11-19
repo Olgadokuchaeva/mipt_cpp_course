@@ -2,6 +2,7 @@
 #define NANO_EDR_RING_BUFFER_H
 
 #include <array>
+#include <utility>
 
 
 namespace nano_edr {
@@ -38,6 +39,16 @@ class RingBuffer {
             ++size_;
         } else {
             data_[head_] = value;
+            head_ = (head_ + 1) % N;
+        }
+    }
+
+    void PushBack(T&& value) {
+        if (size_ < N) {
+            data_[(head_ + size_) % N] = std::move(value);
+            ++size_;
+        } else {
+            data_[head_] = std::move(value);
             head_ = (head_ + 1) % N;
         }
     }
