@@ -34,7 +34,13 @@ void CountingSink::operator()(const Detection& detection) const {
         return;
     }
     ++counter_->total;
-    counter_->seen.push_back(detection);
+    counter_->seen.push_back({
+        detection.rule,
+        detection.severity,
+        detection.ts,
+        detection.pid,
+        detection.actions
+    });
 }
 
 // --- FanOutSink ------------------------------------------------------------

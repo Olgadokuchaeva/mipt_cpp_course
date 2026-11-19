@@ -45,7 +45,7 @@ Event OsSource::MakeEvent(const os_event* ev) {
         f.value = ev->fields[i].value ? ev->fields[i].value : "";
         parts.fields.push_back(f);
     }
-    return Event(parts);
+    return Event(std::move(parts));
 }
 
 

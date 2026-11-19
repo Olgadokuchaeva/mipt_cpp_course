@@ -36,6 +36,8 @@ std::unique_ptr<IRule> MakeScriptHostFromTemp() {
     rule->AddCondition(std::move(image));
     rule->AddCondition(TempPathContains());
     rule->AddAction("kill_process");
+    rule->AddAction("quarantine_source");
+    rule->AddAction("delete_dropped");
     return rule;
 }
 
@@ -94,7 +96,7 @@ std::unique_ptr<IRule> MakeAutostartWrite() {
     path->Add(std::make_unique<FieldContains>("to", "\\start menu\\programs\\startup\\"));
     path->Add(std::make_unique<FieldContains>("to", "/start menu/programs/startup/"));
     rule->AddCondition(std::move(path));
-    rule->AddAction("quarantine_file");
+    rule->AddAction("delete_evidence");
     return rule;
 }
 
@@ -111,7 +113,8 @@ std::unique_ptr<IRule> MakeRansomExtension() {
     path->Add(std::make_unique<FieldEndsWith>("path", ".locked"));
     path->Add(std::make_unique<FieldEndsWith>("to", ".locked"));
     rule->AddCondition(std::move(path));
-    rule->AddAction("quarantine_file");
+    rule->AddAction("kill_process");
+    rule->AddAction("quarantine_image");
     return rule;
 }
 
@@ -144,9 +147,9 @@ std::unique_ptr<IRule> MakeRansomwareMassWrite() {
             FieldContains("path", "\\Documents\\"),
             FieldContains("path", "\\Desktop\\"),
             FieldContains("to", "\\Documents\\"),
-            FieldContains("to", "\\Desktop\\")))));
+            FieldContains("to", "\\Desktop\\"))))); 
     rule->AddAction("kill_process");
-    rule->AddAction("quarantine_file");
+    rule->AddAction("quarantine_image");
     return rule;
 }
 
@@ -185,9 +188,10 @@ std::unique_ptr<IRule> MakeSpawnedFromDroppedFile(const EntityModel* model) {
             return source != nullptr && 
                    !source->writer_pid.empty() && 
                    source->writer_pid != event.pid();
-        });
+        }); 
     rule->AddAction("kill_process");
-    rule->AddAction("quarantine_file");
+    rule->AddAction("quarantine_source");
+    rule->AddAction("delete_dropped");
     return rule;
 }
 

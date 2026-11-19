@@ -9,6 +9,7 @@
 #include "alert_sink.h"
 #include "edr_handle.h"
 #include "field_traits.h"
+#include "copy_stats.h"
 
 namespace {
 
@@ -17,6 +18,8 @@ struct Options {
     bool quiet = false;
     bool force_file = false;
     std::string out;
+    bool copies = false;
+    bool dry_run = false;
 };
 
 int ParseArgs(int argc, char** argv, Options* opts) {
@@ -31,6 +34,10 @@ int ParseArgs(int argc, char** argv, Options* opts) {
             }
             ++i;
             opts->out = argv[i];
+        } else if (arg == "--dry-run") {
+            opts->dry_run = true;
+        } else if (arg == "--copies") {
+            opts->copies = true;
         } else if (arg == "--file") {
             if (!opts->path.empty()) {
                 std::print(stderr, "путь уже задан\n");
@@ -54,7 +61,7 @@ int ParseArgs(int argc, char** argv, Options* opts) {
         }
     }
     if (opts->path.empty()) {
-        std::print(stderr, "использование: nano-edr [--quiet] [--file] [--out <файл>] <путь>\n");
+        std::print(stderr, "использование: nano-edr [--quiet] [--file] [--out <файл>] [--copies] [--dry-run] <путь>\n");
         return 2;
     }
     return 0;
@@ -77,13 +84,14 @@ int main(int argc, char** argv) {
             std::print(stderr, "[WARN] dedup_period_ms не разбирается: {}\n", text);
             dedup_period_ms = 10000;
         }
-        nano_edr::Agent agent(opts.quiet, dedup_period_ms);
         std::unique_ptr<nano_edr::IEventSource> source;
         if (opts.force_file) {
             source = std::make_unique<nano_edr::FileSource>(opts.path);
         } else {
             source = std::make_unique<nano_edr::OsSource>(opts.path);
         }
+        std::string qdir = edr.Config("quarantine_dir", "C:\\quarantine");
+        nano_edr::Agent agent(opts.quiet, dedup_period_ms, source->os(), qdir, opts.dry_run);
         nano_edr::FanOutSink targets;
         targets.Add(nano_edr::ConsoleSink());
         if (!opts.out.empty()) {
@@ -96,6 +104,18 @@ int main(int argc, char** argv) {
             std::print(stderr, "[WARN] детекты не отправлены\n");
         }
         agent.PrintSummary();
+        if (opts.copies) {
+            std::print("[COPY] строк события скопировано {}, перемещено {}\n",
+                       nano_edr::copy_stats().event_strings_copied,
+                       nano_edr::copy_stats().event_strings_moved);
+            std::print("[COPY] записей WindowEntry скопировано {}, перемещено {}\n",
+                       nano_edr::copy_stats().window_copied,
+                       nano_edr::copy_stats().window_moved);
+            std::print("[COPY] событий скопировано в детекты {}\n",
+                       nano_edr::copy_stats().evidence_copied);
+            std::print("[COPY] копий всего {}\n",
+                       nano_edr::copy_stats().total());
+        }
     } catch (const std::exception& error) {
         std::print(stderr, "ошибка: {}\n", error.what());
         return 1;

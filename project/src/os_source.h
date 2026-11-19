@@ -15,6 +15,8 @@ class OsSource : public IEventSource {
 
     void Run(IEventHandler* handler) override;
 
+    OsHandle* os() override { return &handle_; }
+
  private:
     OsHandle handle_;
 
